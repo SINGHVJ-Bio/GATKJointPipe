@@ -1,0 +1,124 @@
+# GATKJointPipe configuration file
+# Edit all paths and parameters to match your environment.
+# Placeholders like {{ project.work_dir }} are expanded automatically.
+
+project:
+  base_name: "ENABL_merged_323_2rep"       # base name for all output files
+  work_dir: "/home/ubuntu/DATA_DRIVE/WGS_gendb_merged"
+
+# Which steps to run (true/false)
+steps:
+  run_step1: true    # GenotypeGVCFs (parallel by chromosome)
+  run_step2: true    # Merge per‑chromosome VCFs into whole‑genome VCF
+  run_step3: false   # Remove samples (requires sample list)
+  run_step4: true    # VQSR + snpEff
+  run_step5: true    # Annotate rsIDs
+
+# Reference files (shared across steps)
+reference:
+  fasta: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Sequence/WholeGenomeFasta/Homo_sapiens_assembly38.fasta"
+  dbsnp: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/Homo_sapiens_assembly38.dbsnp138.vcf.gz"
+  mills: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz"
+  axiom: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz"
+  hapmap: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/hapmap_3.3.hg38.vcf.gz"
+  omni: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/1000G_omni2.5.hg38.vcf.gz"
+  thousandg: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/1000G_phase1.snps.high_confidence.hg38.vcf.gz"
+
+# Step 1: GenotypeGVCFs
+step1:
+  genomicsdb: "gvcf_genomicsdb"
+  gvcfdir: "/home/ubuntu/DATA_DRIVE/WGS_run_JC_319/Haplotypecaller_GVCFs"
+  interval_size: 50000000          # 50 Mb
+  batch_size: 12
+  max_workers: 12
+  chromosomes:
+    - chr1
+    - chr2
+    - chr3
+    - chr4
+    - chr5
+    - chr6
+    - chr7
+    - chr8
+    - chr9
+    - chr10
+    - chr11
+    - chr12
+    - chr13
+    - chr14
+    - chr15
+    - chr16
+    - chr17
+    - chr18
+    - chr19
+    - chr20
+    - chr21
+    - chr22
+    - chrX
+    - chrY
+  out_dir: "{{ project.work_dir }}/ENABL_merged"
+
+# Step 2: Merge per‑chromosome VCFs
+step2:
+  input_dir: "{{ step1.out_dir }}"
+  out_dir: "{{ project.work_dir }}/ENABL_merged/merged"
+  final_vcf: "{{ step2.out_dir }}/{{ project.base_name }}_all_chr.sorted.vcf.gz"
+  jobs: 12
+  bcftools: "bcftools"
+  tabix: "tabix"
+  parallel: "parallel"
+
+# Step 3: Remove samples (only used if run_step3: true)
+step3:
+  sample_remove_list: "/home/ubuntu/DATA_DRIVE/WGS_gendb_merged/ENABL_merged/filtered_280/sample_to_remove_41_2.txt"
+  out_basedir: "{{ project.work_dir }}/ENABL_merged/filtered_280"
+  input_vcf: "{{ step2.final_vcf }}"   # can be overridden
+  bcftools: "bcftools"
+  tabix: "tabix"
+
+# Step 4: VQSR + snpEff
+step4:
+  out_base: "{{ project.work_dir }}/ENABL_merged/filtered_280/recalibrated"
+  java_mem: "-Xmx48g -Xms48g"
+  excess_het_threshold: 54.69
+  indel_tranches:
+    - 100.0
+    - 99.95
+    - 99.9
+    - 99.5
+    - 99.0
+    - 97.0
+    - 96.0
+    - 95.0
+    - 94.0
+    - 93.5
+    - 93.0
+    - 92.0
+    - 91.0
+    - 90.0
+  snp_tranches:
+    - 100.0
+    - 99.95
+    - 99.9
+    - 99.8
+    - 99.6
+    - 99.5
+    - 99.4
+    - 99.3
+    - 99.0
+    - 98.0
+    - 97.0
+    - 90.0
+  snpeff_jar: "/home/ubuntu/snpEff/snpEff.jar"
+  tabix: "tabix"
+
+# Step 5: Annotate rsIDs
+step5:
+  workdir: "{{ project.work_dir }}/ENABL_merged/recalibrated"
+  input_vcf: "{{ step4.out_base }}/{{ project.base_name }}_cohort.snp.recalibrated.snpEff_ann.vcf.gz"
+  out_intact: "{{ step5.workdir }}/{{ project.base_name }}_cohort.snp.recalibrated.snpEff_ann.rsids.vcf.gz"
+  out_split: "{{ step5.workdir }}/{{ project.base_name }}_cohort.snp.recalibrated.snpEff_ann.rsids.split.vcf.gz"
+  dbsnp: "{{ reference.dbsnp }}"
+  ref_fasta: "{{ reference.fasta }}"
+  bcftools: "bcftools"
+  tabix: "tabix"
