@@ -3,21 +3,22 @@
 # Placeholders like {{ project.work_dir }} are expanded automatically.
 
 project:
-  base_name: "ENABL_merged_323_2rep"       # base name for all output files
-  work_dir: "/home/ubuntu/DATA_DRIVE/WGS_gendb_merged"
+  base_name: "ENABL_merged_362_2rep"       # base name for all output files
+  work_dir: "/home/ubuntu/DATA_DRIVE/JOINT_GENOTYPING_FULL"
 
 # Which steps to run (true/false)
 steps:
   run_step1: true    # GenotypeGVCFs (parallel by chromosome)
   run_step2: true    # Merge per‑chromosome VCFs into whole‑genome VCF
-  run_step3: false   # Remove samples (requires sample list)
-  run_step4: true    # VQSR + snpEff
-  run_step5: true    # Annotate rsIDs
+  run_step3: true    # Remove samples (requires sample list)
+  run_step4: true     # VQSR + snpEff
+  run_step5: true     # Annotate rsIDs
 
 # Reference files (shared across steps)
 reference:
   fasta: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Sequence/WholeGenomeFasta/Homo_sapiens_assembly38.fasta"
-  dbsnp: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/Homo_sapiens_assembly38.dbsnp138.vcf.gz"
+  # Use the properly BGZF‑compressed dbSNP file
+  dbsnp: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/dbsnp_146.hg38.vcf.gz"
   mills: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz"
   axiom: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz"
   hapmap: "/home/ubuntu/DATA_DRIVE_REF/references/Homo_sapiens/GATK/GRCh38/Annotation/GATKBundle/hapmap_3.3.hg38.vcf.gz"
@@ -70,16 +71,18 @@ step2:
 
 # Step 3: Remove samples (only used if run_step3: true)
 step3:
-  sample_remove_list: "/home/ubuntu/DATA_DRIVE/WGS_gendb_merged/ENABL_merged/filtered_280/sample_to_remove_41_2.txt"
-  out_basedir: "{{ project.work_dir }}/ENABL_merged/filtered_280"
+  sample_remove_list: "/home/ubuntu/DATA_DRIVE/JOINT_GENOTYPING_FULL/ENABL_merged/sample_to_remove_41_2.txt"
+  out_basedir: "{{ project.work_dir }}/ENABL_merged/filtered_319"
   input_vcf: "{{ step2.final_vcf }}"   # can be overridden
   bcftools: "bcftools"
   tabix: "tabix"
 
 # Step 4: VQSR + snpEff
 step4:
-  out_base: "{{ project.work_dir }}/ENABL_merged/filtered_280/recalibrated"
-  java_mem: "-Xmx48g -Xms48g"
+  # Explicitly use the cleaned VCF from Step 3
+  input_vcf: "/home/ubuntu/DATA_DRIVE/JOINT_GENOTYPING_FULL/ENABL_merged/filtered_319/cleaned_vcf/ENABL_merged_362_2rep.cleaned.vcf.gz"
+  out_base: "{{ project.work_dir }}/ENABL_merged/filtered_319/recalibrated"
+  java_mem: "-Xmx96g -Xms96g"
   excess_het_threshold: 54.69
   indel_tranches:
     - 100.0
@@ -114,10 +117,11 @@ step4:
 
 # Step 5: Annotate rsIDs
 step5:
-  workdir: "{{ project.work_dir }}/ENABL_merged/recalibrated"
-  input_vcf: "{{ step4.out_base }}/{{ project.base_name }}_cohort.snp.recalibrated.snpEff_ann.vcf.gz"
-  out_intact: "{{ step5.workdir }}/{{ project.base_name }}_cohort.snp.recalibrated.snpEff_ann.rsids.vcf.gz"
-  out_split: "{{ step5.workdir }}/{{ project.base_name }}_cohort.snp.recalibrated.snpEff_ann.rsids.split.vcf.gz"
+  workdir: "{{ project.work_dir }}/ENABL_merged/filtered_319/recalibrated"
+  # Input is the snpEff‑annotated VCF from Step 4 – note the ".cleaned" in the filename
+  input_vcf: "{{ step4.out_base }}/{{ project.base_name }}.cleaned_cohort.snp.recalibrated.snpEff_ann.vcf.gz"
+  out_intact: "{{ step5.workdir }}/{{ project.base_name }}.cleaned_cohort.snp.recalibrated.snpEff_ann.rsids.vcf.gz"
+  out_split: "{{ step5.workdir }}/{{ project.base_name }}.cleaned_cohort.snp.recalibrated.snpEff_ann.rsids.split.vcf.gz"
   dbsnp: "{{ reference.dbsnp }}"
   ref_fasta: "{{ reference.fasta }}"
   bcftools: "bcftools"

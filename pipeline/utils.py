@@ -36,7 +36,8 @@ def run_subprocess(cmd: List[str], logger: logging.Logger, step_name: str, check
         result = subprocess.run(
             cmd,
             check=check,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True
         )
         if result.stdout:

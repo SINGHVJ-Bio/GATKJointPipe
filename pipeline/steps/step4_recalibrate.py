@@ -4,29 +4,38 @@ from ..utils import run_subprocess, check_files_exist
 def run(config, logger):
     """
     Step 4: VQSR (indels + SNPs) and snpEff annotation.
-    Determines the appropriate input VCF based on whether step3 ran.
+    Determines the appropriate input VCF based on:
+      - explicit 'input_vcf' in step4 config (highest priority)
+      - otherwise, step3 output if step3 was enabled and exists
+      - otherwise, step2 final VCF
     """
     cfg = config.get('step4')
     if not cfg:
         logger.error("Missing 'step4' section in configuration")
         return
 
-    # Decide input VCF: use step3 output if it exists and step3 was enabled,
-    # otherwise fall back to step2 final VCF.
-    if config.get('steps', 'run_step3', default=False):
-        step3_cfg = config.get('step3')
-        if step3_cfg:
-            candidate = f"{step3_cfg['out_basedir']}/cleaned_vcf/{config.get('project','base_name')}.cleaned.vcf.gz"
-            if Path(candidate).exists():
-                input_vcf = candidate
-                logger.info(f"Using step3 output as input: {input_vcf}")
+    # First priority: explicit input_vcf from step4 config
+    input_vcf = cfg.get('input_vcf')
+    if input_vcf:
+        logger.info(f"Using explicit input VCF from step4 config: {input_vcf}")
+        # Check existence later with all required files
+    else:
+        # Fallback logic: use step3 output if step3 was enabled and exists
+        if config.get('steps', 'run_step3', default=False):
+            step3_cfg = config.get('step3')
+            if step3_cfg:
+                candidate = f"{step3_cfg['out_basedir']}/cleaned_vcf/{config.get('project','base_name')}.cleaned.vcf.gz"
+                if Path(candidate).exists():
+                    input_vcf = candidate
+                    logger.info(f"Using step3 output as input: {input_vcf}")
+                else:
+                    logger.warning(f"Step3 output not found at {candidate}, falling back to step2 final VCF")
+                    input_vcf = config.get('step2', 'final_vcf')
             else:
-                logger.warning(f"Step3 output not found at {candidate}, falling back to step2 final VCF")
                 input_vcf = config.get('step2', 'final_vcf')
         else:
             input_vcf = config.get('step2', 'final_vcf')
-    else:
-        input_vcf = config.get('step2', 'final_vcf')
+        logger.info(f"Input VCF determined as: {input_vcf}")
 
     out_base = cfg.get('out_base')
     ref = config.get('reference', 'fasta')
@@ -43,7 +52,7 @@ def run(config, logger):
     snp_tranches = ','.join(str(x) for x in cfg.get('snp_tranches', []))
     tabix = cfg.get('tabix', 'tabix')
 
-    # Ensure all reference files exist
+    # Ensure all required files exist
     check_files_exist(
         [input_vcf, ref, dbsnp, mills, axiom, hapmap, omni, thousandg],
         logger,

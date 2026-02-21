@@ -68,10 +68,16 @@ gatk MakeSitesOnlyVcf \
 
 # Step 3: Indel recalibration (VariantRecalibrator)
 echo "Running VariantRecalibrator for INDELs..."
-gatk --java-options "${JAVA_MEM}" VariantRecalibrator \
+# Convert comma-separated string to array
+IFS=',' read -r -a indel_tranches <<< "$INDEL_TRANCHES"
+# Build command dynamically
+cmd_indel=( gatk --java-options "${JAVA_MEM}" VariantRecalibrator \
     -V "${COHORT_PREFIX}.sitesonly.vcf.gz" \
-    --trust-all-polymorphic \
-    -tranche $(echo "${INDEL_TRANCHES}" | tr ',' ' ') \
+    --trust-all-polymorphic )
+for t in "${indel_tranches[@]}"; do
+    cmd_indel+=( -tranche "$t" )
+done
+cmd_indel+=(
     -an FS -an ReadPosRankSum -an MQRankSum -an QD -an SOR -an DP \
     -mode INDEL \
     --max-gaussians 4 \
@@ -80,6 +86,9 @@ gatk --java-options "${JAVA_MEM}" VariantRecalibrator \
     -resource:dbsnp,known=true,training=false,truth=false,prior=2 "${DBSNP}" \
     -O "${COHORT_PREFIX}.indels.recal" \
     --tranches-file "${COHORT_PREFIX}.indels.tranches"
+)
+# Execute
+"${cmd_indel[@]}"
 
 # Step 4: ApplyVQSR for INDELs
 echo "Applying VQSR for INDELs..."
@@ -94,10 +103,16 @@ gatk --java-options "${JAVA_MEM}" ApplyVQSR \
 
 # Step 5: SNP recalibration (VariantRecalibrator)
 echo "Running VariantRecalibrator for SNPs..."
-gatk --java-options "${JAVA_MEM}" VariantRecalibrator \
+# Convert comma-separated string to array
+IFS=',' read -r -a snp_tranches <<< "$SNP_TRANCHES"
+# Build command dynamically
+cmd_snp=( gatk --java-options "${JAVA_MEM}" VariantRecalibrator \
     -V "${COHORT_PREFIX}.sitesonly.vcf.gz" \
-    --trust-all-polymorphic \
-    -tranche $(echo "${SNP_TRANCHES}" | tr ',' ' ') \
+    --trust-all-polymorphic )
+for t in "${snp_tranches[@]}"; do
+    cmd_snp+=( -tranche "$t" )
+done
+cmd_snp+=(
     -an QD -an MQRankSum -an ReadPosRankSum -an FS -an MQ -an SOR -an DP \
     -mode SNP \
     --max-gaussians 6 \
@@ -107,6 +122,9 @@ gatk --java-options "${JAVA_MEM}" VariantRecalibrator \
     -resource:dbsnp,known=true,training=false,truth=false,prior=7 "${DBSNP}" \
     -O "${COHORT_PREFIX}.snps.recal" \
     --tranches-file "${COHORT_PREFIX}.snps.tranches"
+)
+# Execute
+"${cmd_snp[@]}"
 
 # Step 6: ApplyVQSR for SNPs
 echo "Applying VQSR for SNPs..."
